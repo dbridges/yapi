@@ -34,6 +34,7 @@ type Config struct {
 }
 
 // TODO: dynamically generate this using reflection
+// ConfigSettingsKeys are reserved for settings use
 var ConfigSettingsKeys = map[string]bool{
 	"root":    true,
 	"headers": true,
@@ -82,6 +83,7 @@ func (cfg *Config) NewRequest(name string) (*Request, error) {
 	return &r, nil
 }
 
+// RequestNames lists available request names
 func (cfg *Config) RequestNames() []string {
 	items := make([]string, 0, len(cfg.Requests))
 	for k := range cfg.Requests {

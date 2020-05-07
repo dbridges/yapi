@@ -51,7 +51,7 @@ $ yapi --name users.show routes.yapi.yml
 
 ## Installation
 
-You'll need Go, then lone the git repo and run:
+You'll need Go, then clone the git repo and run:
 
 ```sh
 make
