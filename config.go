@@ -1,17 +1,23 @@
 package main
 
 import (
-	"bytes"
-	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"net/http"
 	"regexp"
 	"strings"
 
 	"github.com/mitchellh/mapstructure"
 	"gopkg.in/yaml.v2"
 )
+
+// Config is an interface to a given YAPI configuration
+type Config interface {
+	DisplayHeaders() bool
+	RequestNames() []string
+	FindRequestName(int) (string, error)
+	NewRequest(string) (*Request, error)
+	SessionName() string
+}
 
 // Request stores the details for a single request
 type Request struct {
@@ -23,8 +29,8 @@ type Request struct {
 	Body    string
 }
 
-// Config stores the yaml project configuration data
-type Config struct {
+// YAMLConfig implements Config backed by a YAML file
+type YAMLConfig struct {
 	Root     string
 	Headers  map[string]string
 	Output   map[string]bool
@@ -34,17 +40,17 @@ type Config struct {
 }
 
 // TODO: dynamically generate this using reflection
-// ConfigSettingsKeys are reserved for settings use
-var ConfigSettingsKeys = map[string]bool{
+// YAMLConfigSettingsKeys are reserved for settings use
+var YAMLConfigSettingsKeys = map[string]bool{
 	"root":    true,
 	"headers": true,
 	"output":  true,
 	"session": true,
 }
 
-// NewConfig loads a config for a given filename
-func NewConfig(fname string) (*Config, error) {
-	cfg := Config{}
+// NewYAMLConfig loads a config for a given filename
+func NewYAMLConfig(fname string) (*YAMLConfig, error) {
+	cfg := YAMLConfig{}
 	data, err := ioutil.ReadFile(fname)
 	if err != nil {
 		return nil, err
@@ -62,7 +68,7 @@ func NewConfig(fname string) (*Config, error) {
 }
 
 // NewRequest creates a new request based on the current config
-func (cfg *Config) NewRequest(name string) (*Request, error) {
+func (cfg *YAMLConfig) NewRequest(name string) (*Request, error) {
 	var r Request
 	err := mapstructure.Decode(cfg.Requests[name], &r)
 	if err != nil {
@@ -84,19 +90,19 @@ func (cfg *Config) NewRequest(name string) (*Request, error) {
 }
 
 // RequestNames lists available request names
-func (cfg *Config) RequestNames() []string {
+func (cfg *YAMLConfig) RequestNames() []string {
 	items := make([]string, 0, len(cfg.Requests))
 	for k := range cfg.Requests {
-		if !ConfigSettingsKeys[k] {
+		if !YAMLConfigSettingsKeys[k] {
 			items = append(items, k)
 		}
 	}
 	return items
 }
 
-// RequestNameForLine tries to find the nearest (going upward) request for a
+// FindRequestName tries to find the nearest (going upward) request for a
 // given line number
-func (cfg *Config) RequestNameForLine(line int) (string, error) {
+func (cfg *YAMLConfig) FindRequestName(line int) (string, error) {
 	re := regexp.MustCompile(`(^\S.*):$`)
 	lines := strings.Split(string(cfg.data), "\n")
 	if line >= len(lines) {
@@ -105,7 +111,7 @@ func (cfg *Config) RequestNameForLine(line int) (string, error) {
 	row := line
 	for row > 0 {
 		match := re.FindStringSubmatch(lines[row])
-		if len(match) == 2 && !ConfigSettingsKeys[match[1]] {
+		if len(match) == 2 && !YAMLConfigSettingsKeys[match[1]] {
 			return match[1], nil
 		}
 		row--
@@ -113,52 +119,14 @@ func (cfg *Config) RequestNameForLine(line int) (string, error) {
 	return "", fmt.Errorf("unable to find request near line %d", line)
 }
 
-// PrintResponse displays the response according to the configuration
-func (cfg *Config) PrintResponse(resp *http.Response) {
-	body, err := ioutil.ReadAll(resp.Body)
-	Must(err)
-	fmt.Println(resp.Status)
-	fmt.Println("")
-
-	// Print Headers if wanted
-	if val, ok := cfg.Output["headers"]; val && ok {
-		for k := range resp.Header {
-			fmt.Printf("%s: %s\n", k, resp.Header.Get(k))
-		}
-		fmt.Println("")
-	}
-
-	// Print Body
-	if strings.Index(resp.Header.Get("Content-Type"), "application/json") >= 0 {
-		// Pretty print JSON
-		var output bytes.Buffer
-		err := json.Indent(&output, body, "", "  ")
-		Must(err)
-		fmt.Println(output.String())
-	} else {
-		fmt.Println(string(body))
-	}
+// DisplayHeaders returns whether or not the config wants headers to be
+// displayed in the output.
+func (cfg *YAMLConfig) DisplayHeaders() bool {
+	val, ok := cfg.Output["headers"]
+	return val && ok
 }
 
-// DoRequest performs the given request and returns a http response
-func (cfg *Config) DoRequest(r *Request) (*http.Response, error) {
-	req, err := http.NewRequest(r.Method, r.URL, strings.NewReader(r.Body))
-	if err != nil {
-		return nil, err
-	}
-	if len(r.Params) > 0 {
-		q := req.URL.Query()
-		for k, v := range r.Params {
-			q.Add(k, v)
-		}
-		req.URL.RawQuery = q.Encode()
-	}
-	for k, v := range r.Headers {
-		req.Header.Set(k, v)
-	}
-	client, err := NewClient(cfg.Session)
-	if err != nil {
-		return nil, err
-	}
-	return client.Do(req)
+// SessionName returns the name used for cookie storage
+func (cfg *YAMLConfig) SessionName() string {
+	return cfg.Session
 }

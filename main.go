@@ -71,7 +71,7 @@ func main() {
 		usage()
 		return
 	}
-	cfg, err := NewConfig(fname)
+	cfg, err := NewYAMLConfig(fname)
 	Must(err)
 	if listFlag {
 		list(cfg)
@@ -85,25 +85,22 @@ func main() {
 	if nameFlag == "" {
 		lineInt, err := strconv.Atoi(line)
 		Must(err)
-		nameFlag, err = cfg.RequestNameForLine(lineInt)
+		nameFlag, err = cfg.FindRequestName(lineInt)
 		Must(err)
 	}
-	req, err := cfg.NewRequest(nameFlag)
+	c := NewFetchController(cfg)
+	err = c.DoRequest(nameFlag)
 	Must(err)
-	fmt.Printf("%s %s\n\n", req.Method, req.URL)
-	resp, err := cfg.DoRequest(req)
-	Must(err)
-	cfg.PrintResponse(resp)
 }
 
-func list(cfg *Config) {
+func list(cfg Config) {
 	fmt.Println("Named routes:")
 	for _, r := range cfg.RequestNames() {
 		fmt.Printf("    %s\n", r)
 	}
 }
 
-func fetch(cfg *Config, name string) {
+func fetch(cfg Config, name string) {
 
 }
 
