@@ -1,4 +1,4 @@
-package main
+package config
 
 import (
 	"fmt"
@@ -70,7 +70,11 @@ func NewYAMLConfig(fname string) (*YAMLConfig, error) {
 // NewRequest creates a new request based on the current config
 func (cfg *YAMLConfig) NewRequest(name string) (*Request, error) {
 	var r Request
-	err := mapstructure.Decode(cfg.Requests[name], &r)
+	cfgReq, ok := cfg.Requests[name]
+	if !ok {
+		return nil, fmt.Errorf("unable to find request named `%s`", name)
+	}
+	err := mapstructure.Decode(cfgReq, &r)
 	if err != nil {
 		return nil, err
 	}

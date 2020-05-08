@@ -1,4 +1,4 @@
-package main
+package cmd
 
 import (
 	"bytes"
@@ -7,23 +7,22 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+
+	"github.com/dbridges/yapi/client"
+	"github.com/dbridges/yapi/config"
 )
 
-// FetchController manages performing a request and displaying its response.
-type FetchController struct {
-	cfg Config
+type fetch struct {
+	cfg config.Config
 }
 
-// NewFetchController creates a new FetchController
-func NewFetchController(cfg Config) *FetchController {
-	return &FetchController{
-		cfg: cfg,
-	}
+func Fetch(cfg config.Config, name string) error {
+	f := &fetch{cfg: cfg}
+	return f.Run(name)
 }
 
-// DoRequest performs the given request and returns an http response
-func (c *FetchController) DoRequest(name string) error {
-	r, err := c.cfg.NewRequest(nameFlag)
+func (f *fetch) Run(name string) error {
+	r, err := f.cfg.NewRequest(name)
 	if err != nil {
 		return err
 	}
@@ -41,7 +40,7 @@ func (c *FetchController) DoRequest(name string) error {
 	for k, v := range r.Headers {
 		req.Header.Set(k, v)
 	}
-	client, err := NewClient(c.cfg.SessionName())
+	client, err := client.New(f.cfg.SessionName())
 	if err != nil {
 		return err
 	}
@@ -49,19 +48,19 @@ func (c *FetchController) DoRequest(name string) error {
 	if err != nil {
 		return err
 	}
-	c.PrintResponse(resp)
-	return nil
+	return f.printResponse(resp)
 }
 
-// PrintResponse displays the response according to the configuration
-func (c *FetchController) PrintResponse(resp *http.Response) {
+func (f *fetch) printResponse(resp *http.Response) error {
 	body, err := ioutil.ReadAll(resp.Body)
-	Must(err)
+	if err != nil {
+		return err
+	}
 	fmt.Println(resp.Status)
 	fmt.Println("")
 
 	// Print Headers if wanted
-	if c.cfg.DisplayHeaders() {
+	if f.cfg.DisplayHeaders() {
 		for k := range resp.Header {
 			fmt.Printf("%s: %s\n", k, resp.Header.Get(k))
 		}
@@ -73,9 +72,12 @@ func (c *FetchController) PrintResponse(resp *http.Response) {
 		// Pretty print JSON
 		var output bytes.Buffer
 		err := json.Indent(&output, body, "", "  ")
-		Must(err)
+		if err != nil {
+			return err
+		}
 		fmt.Println(output.String())
 	} else {
 		fmt.Println(string(body))
 	}
+	return nil
 }

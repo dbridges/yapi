@@ -1,4 +1,4 @@
-package main
+package client
 
 import (
 	"net/http"
@@ -16,8 +16,8 @@ type Client struct {
 	sessionName string
 }
 
-// NewClient creates a new client with the provided session Name
-func NewClient(sessionName string) (*Client, error) {
+// New creates a new client with the provided session Name
+func New(sessionName string) (*Client, error) {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		return nil, err
